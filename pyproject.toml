@@ -11,3 +11,6 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "sqlglot>=30.12.0",
 ]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
