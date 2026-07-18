@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 from urllib.parse import quote_plus
@@ -68,4 +70,6 @@ class Settings(BaseSettings):
             database=self.postgres_database,
         )
 
-settings = Settings()
+@lru_cache
+def get_settings():
+    return Settings()
