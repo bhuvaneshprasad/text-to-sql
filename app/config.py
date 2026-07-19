@@ -17,9 +17,6 @@ class Settings(BaseSettings):
     postgres_admin_user: str = "postgres"
     postgres_admin_password: SecretStr
 
-    postgres_app_user: str = "querypilot_app"
-    postgres_app_password: SecretStr
-
     postgres_read_only_user: str = "querypilot_reader"
     postgres_read_only_password: SecretStr
 
@@ -51,14 +48,6 @@ class Settings(BaseSettings):
         return self.build_postgres_url(
             user=self.postgres_admin_user,
             password=self.postgres_admin_password,
-            database=self.postgres_database,
-        )
-
-    @property
-    def app_database_url(self) -> str:
-        return self.build_postgres_url(
-            user=self.postgres_app_user,
-            password=self.postgres_app_password,
             database=self.postgres_database,
         )
 
