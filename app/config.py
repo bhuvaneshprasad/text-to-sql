@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
@@ -23,6 +24,11 @@ class Settings(BaseSettings):
     postgres_pool_min_size: int = 1
     postgres_pool_max_size: int = 5
     postgres_connect_timeout_seconds: int = 10
+
+    querypilot_seed_base_url: str = (
+        "https://raw.githubusercontent.com/QueryPilot/studio/master/seeds/postgres"
+    )
+    querypilot_seed_cache_dir: Path = Path(".cache/querypilot")
     
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -45,7 +51,7 @@ class Settings(BaseSettings):
     
     @property
     def target_admin_database_url(self) -> str:
-        return self.build_postgres_url(
+        return self.build_postgres_uri(
             user=self.postgres_admin_user,
             password=self.postgres_admin_password,
             database=self.postgres_database,
@@ -53,7 +59,7 @@ class Settings(BaseSettings):
 
     @property
     def readonly_database_url(self) -> str:
-        return self.build_postgres_url(
+        return self.build_postgres_uri(
             user=self.postgres_readonly_user,
             password=self.postgres_readonly_password,
             database=self.postgres_database,
