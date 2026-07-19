@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     llm_base_url: str = "http://localhost:11434/v1"
     llm_api_key: SecretStr = SecretStr("ollama")
-    llm_chat_model: str = "qwen2.5-coder:7b"
+    llm_chat_model: str = "qwen3.5:9b"
     llm_timeout_seconds: float = 120.0
 
     sql_max_rows: int = 100
