@@ -58,10 +58,10 @@ class Settings(BaseSettings):
         )
 
     @property
-    def readonly_database_url(self) -> str:
+    def read_only_database_url(self) -> str:
         return self.build_postgres_uri(
-            user=self.postgres_readonly_user,
-            password=self.postgres_readonly_password,
+            user=self.postgres_read_only_user,
+            password=self.postgres_read_only_password,
             database=self.postgres_database,
         )
 
