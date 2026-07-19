@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = SecretStr("ollama")
     llm_chat_model: str = "qwen2.5-coder:7b"
     llm_timeout_seconds: float = 120.0
+
+    sql_max_rows: int = 100
+    sql_statement_timeout_ms: int = 10000
     
     model_config = SettingsConfigDict(
         env_file=".env",
