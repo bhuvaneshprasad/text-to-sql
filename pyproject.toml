@@ -14,3 +14,9 @@ dependencies = [
 
 [tool.fastapi]
 entrypoint = "app.main:app"
+
+[tool.uv]
+package = true
+
+[project.scripts]
+bootstrap = "app.bootstrap:main"

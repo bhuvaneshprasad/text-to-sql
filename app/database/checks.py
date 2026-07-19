@@ -26,7 +26,7 @@ async def database_exists(settings: Settings):
 async def create_database(settings: Settings):
     try:
         async with await AsyncConnection.connect(
-            settings.admin_database_url,
+            settings.admin_database_uri,
             autocommit=True,
             connect_timeout=settings.postgres_connect_timeout_seconds,
         ) as connection:
