@@ -1,3 +1,6 @@
+import json
+import time
+
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -5,7 +8,7 @@ from app.database.executor import SQLExecutor
 from app.models.tools import ExecuteSQLArgs
 from app.prompts.text_to_sql_agent import get_text_to_sql_prompt
 from app.tools.db_tools import EXECUTE_SQL_TOOL
-from app.models.chat import ChatTurn
+from app.models.chat import ChatTurn, AgentResult, StepTrace, ToolCallTrace
 
 
 class TextToSQLAgent:
@@ -29,42 +32,104 @@ class TextToSQLAgent:
 
         messages.append({"role": "user", "content": question})
 
+        steps: list[StepTrace] = []
+
         for _ in range(self.max_tool_calls):
+            started = time.perf_counter()
             completion = await self.client.chat.completions.parse(
                 model=self.model,
                 messages=messages,
                 tools=[EXECUTE_SQL_TOOL],
                 tool_choice="auto",
             )
+            llm_latency_ms = (time.perf_counter() - started) * 1000
 
             message = completion.choices[0].message
             messages.append(message)
 
+            print(message)
+
             tool_calls = message.tool_calls or []
 
+            steps.append(
+                StepTrace(
+                    index=len(steps) + 1,
+                    kind="llm",
+                    label="LLM (tool call requested)" if tool_calls else "LLM (final answer)",
+                    latency_ms=round(llm_latency_ms, 1),
+                )
+            )
+
             if not tool_calls:
-                return message.content or ""
+                return AgentResult(response=message.content or "", steps=steps)
 
             for tool_call in tool_calls:
-                tool_results = await self.execute_tool_call(tool_call)
+                content, trace = await self.execute_tool_call(tool_call)
+
+                steps.append(
+                    StepTrace(
+                        index=len(steps) + 1,
+                        kind="tool",
+                        label=f"Tool: {trace.name}",
+                        latency_ms=trace.latency_ms,
+                        tool_call=trace,
+                    )
+                )
 
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": tool_results,
+                    "content": content,
                 })
         
         raise RuntimeError("Agent exceeded the maximum number of tool calls")
     
     async def execute_tool_call(self, tool_call):
-        if tool_call.function.name != "execute_sql":
-            raise ValueError(f"Unsupported tool: {tool_call.function.name}")
-        
+        name = tool_call.function.name
+
+        if name != "execute_sql":
+            raise ValueError(f"Unsupported tool: {name}")
+
         args = tool_call.function.parsed_arguments
 
         if not isinstance(args, ExecuteSQLArgs):
             raise TypeError("invalid execute_sql tool arguments.")
-        
-        result = await self.sql_executor.execute(args.sql_query)
 
-        return result.model_dump_json()
+        sql_query = args.sql_query
+        started = time.perf_counter()
+        error: str | None = None
+        row_count: int | None = None
+        columns = []
+        rows = []
+        total_count = None
+        truncated = False
+
+        try:
+            result = await self.sql_executor.execute(sql_query)
+            content = result.model_dump_json()
+            row_count = result.row_count
+            columns = result.columns
+            rows = result.rows
+            total_count = result.total_count
+            truncated = result.truncated
+        except Exception as exc:
+            error = str(exc)
+            # capture the error, feed it back to the model to correct itself instead of crashing
+            content = json.dumps({"error": error})
+        
+        latency_ms = (time.perf_counter() - started) * 1000
+
+        trace = ToolCallTrace(
+            name=name,
+            args=args.model_dump(),
+            latency_ms=round(latency_ms, 1),
+            sql_query=sql_query,
+            row_count=row_count,
+            error=error,
+            columns=columns,
+            rows=rows,
+            total_count=total_count,
+            truncated=truncated,
+        )
+
+        return content, trace

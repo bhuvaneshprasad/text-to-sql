@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, Request
 from psycopg_pool import AsyncConnectionPool
 
@@ -12,6 +14,7 @@ chat_router = APIRouter(prefix="/chat")
 
 @chat_router.post("/", response_model=ChatResponse)
 async def chat(payload: ChatRequest, request: Request, settings = Depends(get_settings)):
+    started = time.perf_counter()
     pool: AsyncConnectionPool = request.app.state.database_pool
     schema_metadata = await get_schema_metadata(pool)
     schema_context = format_schema_context(schema_metadata)
@@ -31,4 +34,17 @@ async def chat(payload: ChatRequest, request: Request, settings = Depends(get_se
 
     response =  await agent.invoke(question=payload.question, history=payload.history)
 
-    return ChatResponse(response=response)
+    total_latency_ms = (time.perf_counter() - started) * 1000
+
+    sql_queries = [
+        step.tool_call.sql_query
+        for step in response.steps
+        if step.tool_call and step.tool_call.sql_query
+    ]
+
+    return ChatResponse(
+        response=response.response,
+        total_latency_ms=total_latency_ms,
+        steps=response.steps,
+        sql_queries=sql_queries,
+        )

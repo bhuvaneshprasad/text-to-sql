@@ -221,3 +221,5 @@ __marimo__/
 
 .chainlit/translations/
 chainlit.md
+
+.files/
