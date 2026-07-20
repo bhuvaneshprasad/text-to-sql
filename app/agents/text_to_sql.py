@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 from openai import AsyncOpenAI
@@ -10,9 +11,11 @@ from app.prompts.text_to_sql_agent import get_text_to_sql_prompt
 from app.tools.db_tools import EXECUTE_SQL_TOOL
 from app.models.chat import ChatTurn, AgentResult, StepTrace, ToolCallTrace
 
+logger = logging.getLogger(__name__)
+
 
 class TextToSQLAgent:
-    def __init__(self, client: AsyncOpenAI, model: str, sql_executor: SQLExecutor, schema_context: str, max_tool_calls: int = 3):
+    def __init__(self, client: AsyncOpenAI, model: str, sql_executor: SQLExecutor, schema_context: str, max_tool_calls: int = 15):
         self.client = client
         self.model = model
         self.sql_executor = sql_executor
@@ -34,7 +37,13 @@ class TextToSQLAgent:
 
         steps: list[StepTrace] = []
 
-        for _ in range(self.max_tool_calls):
+        for iteration in range(self.max_tool_calls):
+            logger.info(
+                "LLM call %d/%d (model=%s)",
+                iteration + 1,
+                self.max_tool_calls,
+                self.model,
+            )
             started = time.perf_counter()
             completion = await self.client.chat.completions.parse(
                 model=self.model,
@@ -47,9 +56,12 @@ class TextToSQLAgent:
             message = completion.choices[0].message
             messages.append(message)
 
-            print(message)
-
             tool_calls = message.tool_calls or []
+            logger.info(
+                "LLM responded in %.1f ms: %d tool call(s) requested",
+                llm_latency_ms,
+                len(tool_calls),
+            )
 
             steps.append(
                 StepTrace(
@@ -61,6 +73,7 @@ class TextToSQLAgent:
             )
 
             if not tool_calls:
+                logger.info("LLM returned final answer after %d step(s)", len(steps))
                 return AgentResult(response=message.content or "", steps=steps)
 
             for tool_call in tool_calls:
@@ -82,6 +95,7 @@ class TextToSQLAgent:
                     "content": content,
                 })
         
+        logger.warning("Agent exceeded the maximum number of tool calls (%d)", self.max_tool_calls)
         raise RuntimeError("Agent exceeded the maximum number of tool calls")
     
     async def execute_tool_call(self, tool_call):
@@ -96,6 +110,7 @@ class TextToSQLAgent:
             raise TypeError("invalid execute_sql tool arguments.")
 
         sql_query = args.sql_query
+        logger.info("Executing tool '%s': %s", name, sql_query)
         started = time.perf_counter()
         error: str | None = None
         row_count: int | None = None
@@ -116,8 +131,19 @@ class TextToSQLAgent:
             error = str(exc)
             # capture the error, feed it back to the model to correct itself instead of crashing
             content = json.dumps({"error": error})
-        
+            logger.warning("Tool '%s' failed: %s", name, error)
+
         latency_ms = (time.perf_counter() - started) * 1000
+
+        if error is None:
+            logger.info(
+                "Tool '%s' returned %s row(s) in %.1f ms (total_count=%s, truncated=%s)",
+                name,
+                row_count,
+                latency_ms,
+                total_count,
+                truncated,
+            )
 
         trace = ToolCallTrace(
             name=name,

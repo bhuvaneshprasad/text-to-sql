@@ -8,6 +8,7 @@ from urllib.parse import quote_plus
 class Settings(BaseSettings):
     app_name: str ="Text-to-SQL"
     debug: bool = False
+    log_level: str = "INFO"
 
     postgres_host: str
     postgres_port: int = 5432

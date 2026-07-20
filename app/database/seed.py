@@ -1,9 +1,12 @@
 import asyncio
+import logging
 import os
 from pathlib import Path
 from urllib.request import urlopen
 
 from app.config import Settings
+
+logger = logging.getLogger(__name__)
 
 SEED_FILES = [
     "01_schema.sql",
@@ -83,5 +86,5 @@ async def execute_sql_file(settings: Settings,sql_file: Path):
 
 async def seed_database(settings: Settings, seed_files: list[Path]) -> None:
     for seed_file in seed_files:
-        print(f"Executing: {seed_file.name}")
+        logger.info("Executing seed file: %s", seed_file.name)
         await execute_sql_file(settings, seed_file)

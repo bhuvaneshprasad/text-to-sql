@@ -1,3 +1,4 @@
+import logging
 import time
 
 from fastapi import APIRouter, Depends, Request
@@ -10,14 +11,22 @@ from app.database.introspection import get_schema_metadata, format_schema_contex
 from app.llm.client import create_llm_client
 from app.models.chat import ChatRequest, ChatResponse
 
+logger = logging.getLogger(__name__)
+
 chat_router = APIRouter(prefix="/chat")
 
 @chat_router.post("/", response_model=ChatResponse)
 async def chat(payload: ChatRequest, request: Request, settings = Depends(get_settings)):
     started = time.perf_counter()
+    logger.info(
+        "Chat request received: question=%r, history_turns=%d",
+        payload.question,
+        len(payload.history or []),
+    )
     pool: AsyncConnectionPool = request.app.state.database_pool
     schema_metadata = await get_schema_metadata(pool)
     schema_context = format_schema_context(schema_metadata)
+    logger.debug("Schema context loaded (%d chars)", len(schema_context))
 
     executor = SQLExecutor(
         pool=pool,
@@ -41,6 +50,13 @@ async def chat(payload: ChatRequest, request: Request, settings = Depends(get_se
         for step in response.steps
         if step.tool_call and step.tool_call.sql_query
     ]
+
+    logger.info(
+        "Chat request completed in %.1f ms: %d steps, %d SQL queries",
+        total_latency_ms,
+        len(response.steps),
+        len(sql_queries),
+    )
 
     return ChatResponse(
         response=response.response,

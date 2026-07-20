@@ -1,9 +1,13 @@
 import asyncio
+import logging
 
 from app.config import get_settings
 from .database.checks import ensure_database_exists, get_database_tables
 from app.database.seed import download_seed_files, seed_database
 from app.database.roles import provision_read_only_role
+from app.logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 async def bootstrap():
@@ -12,15 +16,16 @@ async def bootstrap():
     created = await ensure_database_exists(settings=settings)
 
     if created:
-        print(f"Created database: {settings.postgres_database}")
+        logger.info("Created database: %s", settings.postgres_database)
     else:
-        print(f"Database already exists: {settings.postgres_database}")
-    
+        logger.info("Database already exists: %s", settings.postgres_database)
+
     tables = await get_database_tables(settings)
 
     if tables:
-        print(f"Dataset already present: {len(tables)} tables found")
+        logger.info("Dataset already present: %d tables found", len(tables))
     else:
+        logger.info("No dataset found; downloading and seeding")
         seed_files = download_seed_files(settings)
 
         await seed_database(
@@ -35,16 +40,21 @@ async def bootstrap():
                 "Seed scripts completed but no tables were found"
             )
 
-        print(f"Dataset ingestion completed: {len(tables)} tables found")
+        logger.info("Dataset ingestion completed: %d tables found", len(tables))
 
     role_created = await provision_read_only_role(settings)
 
     if role_created:
-        print(f"Created read-only role: {settings.postgres_read_only_user}")
+        logger.info("Created read-only role: %s", settings.postgres_read_only_user)
     else:
-        print(f"Read-only role already exists and permissions were refreshed: {settings.postgres_read_only_user}")
+        logger.info(
+            "Read-only role already exists and permissions were refreshed: %s",
+            settings.postgres_read_only_user,
+        )
 
 def main():
+    settings = get_settings()
+    configure_logging(settings.log_level)
     asyncio.run(bootstrap())
 
 if __name__ == "__main__":
