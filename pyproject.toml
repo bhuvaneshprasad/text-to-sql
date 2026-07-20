@@ -5,12 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "chainlit>=2.11.1",
     "fastapi[standard-no-fastapi-cloud-cli]>=0.139.2",
     "openai>=2.46.0",
     "psycopg[binary,pool]>=3.3.4",
     "pydantic-settings>=2.14.2",
     "sqlglot>=30.12.0",
 ]
+
+[tool.setuptools]
+packages = ["app"]
 
 [tool.fastapi]
 entrypoint = "app.main:app"
