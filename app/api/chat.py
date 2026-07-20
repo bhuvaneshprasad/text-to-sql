@@ -29,6 +29,6 @@ async def chat(payload: ChatRequest, request: Request, settings = Depends(get_se
         schema_context=schema_context,
     )
 
-    response =  await agent.invoke(question=payload.question)
+    response =  await agent.invoke(question=payload.question, history=payload.history)
 
     return ChatResponse(response=response)

@@ -5,6 +5,7 @@ from app.database.executor import SQLExecutor
 from app.models.tools import ExecuteSQLArgs
 from app.prompts.text_to_sql_agent import get_text_to_sql_prompt
 from app.tools.db_tools import EXECUTE_SQL_TOOL
+from app.models.chat import ChatTurn
 
 
 class TextToSQLAgent:
@@ -15,17 +16,18 @@ class TextToSQLAgent:
         self.schema_context = schema_context
         self.max_tool_calls = max_tool_calls
     
-    async def invoke(self, question: str):
+    async def invoke(self, question: str, history: list[ChatTurn] | None = None):
         messages: list[ChatCompletionMessageParam] = [
             {
                 "role": "system",
                 "content": get_text_to_sql_prompt(self.schema_context),
-            },
-            {
-                "role": "user",
-                "content": question,
             }
         ]
+
+        for turn in history or []:
+            messages.append({"role": turn.role, "content": turn.content})
+
+        messages.append({"role": "user", "content": question})
 
         for _ in range(self.max_tool_calls):
             completion = await self.client.chat.completions.parse(
