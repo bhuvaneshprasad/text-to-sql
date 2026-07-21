@@ -50,9 +50,9 @@ LLM_API_KEY=sk-...             # your OpenAI API key
 LLM_CHAT_MODEL=gpt-5.4-mini    # tested model; any capable chat model works
 ```
 
-> This project was developed and tested against **`gpt-5.4-mini`**.
+> This project was developed and tested against **`gpt-5.4-mini`** and **`qwen-3.5:9b`** (a few questions).
 
-**Ollama (local, no API cost)** - the `/v1` endpoint ignores per-request `num_ctx`, so the large context window must be baked into the model. Create it once from the provided Modelfile:
+**Ollama (local)** - the `/v1` endpoint ignores per-request `num_ctx`, so the large context window must be baked into the model. Create it once from the provided Modelfile:
 
 ```bash
 ollama create qwen3.5-128k -f Modelfile.qwen35-128k
