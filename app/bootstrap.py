@@ -3,7 +3,7 @@ import logging
 
 from app.config import get_settings
 from .database.checks import ensure_database_exists, get_database_tables
-from app.database.seed import download_seed_files, seed_database
+from app.database.seed import download_seed_files, seed_database, get_local_sql_files, execute_sql_file
 from app.database.roles import provision_read_only_role
 from app.logging_config import configure_logging
 
@@ -41,6 +41,10 @@ async def bootstrap():
             )
 
         logger.info("Dataset ingestion completed: %d tables found", len(tables))
+
+    for sql_file in get_local_sql_files():
+        logger.info("Applying descriptions from: %s", sql_file.name)
+        await execute_sql_file(settings, sql_file)
 
     role_created = await provision_read_only_role(settings)
 

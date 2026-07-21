@@ -13,6 +13,20 @@ SEED_FILES = [
     "02_seed_data.sql",
 ]
 
+LOCAL_SQL_DIR = Path(__file__).parent / "sql"
+LOCAL_SQL_FILES = [
+    "03_descriptions.sql",
+]
+
+def get_local_sql_files():
+    files: list[Path] = []
+    for filename in LOCAL_SQL_FILES:
+        path = LOCAL_SQL_DIR / filename
+        if not path.is_file():
+            raise FileNotFoundError(f"Local SQL file not found: {path}")
+        files.append(path)
+    return files
+
 def download_file(url: str, destination: Path):
     try:
         with urlopen(url, timeout=60) as response:
