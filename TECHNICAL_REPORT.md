@@ -71,4 +71,5 @@ Each response is transparent about what happened. The UI shows the generated SQL
 - **No Compact** of chat history is implemented to keep the earlier context.
 - **Schema is cached at startup.** Re-seeding or changing the schema requires restarting the API to pick up the change.
 - **Single dataset, single database.** There is no multi-tenant or multi-database support.
+- **User input is capped at 3000 characters per message.** The API rejects longer questions (HTTP 422) and the UI blocks them before sending, so very long prompts or pasted documents must be trimmed.
 - **Latency** can be high on reasoning models or CPU-only local inference, since a single question may take several model calls (catalogue lookups plus the business query). For openai models I got latency of 4-12 seconds based on the query complexity.

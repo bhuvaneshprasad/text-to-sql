@@ -4,7 +4,7 @@ class ChatTurn(BaseModel):
     role: Literal["user", "assistant"]
     content: str
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(min_length=1, max_length=3000)
     history: list[ChatTurn] = Field(default_factory=list)
 
 class ToolCallTrace(BaseModel):

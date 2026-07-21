@@ -11,6 +11,8 @@ TIMEOUT = httpx.Timeout(connect=10.0, read=600.0, write=10.0, pool=10.0)
 
 MAX_CHAT_TURNS = 7
 
+MAX_QUESTION_CHARS = 3000
+
 
 @cl.set_starters
 async def set_starters():
@@ -151,6 +153,15 @@ async def render_trace(data: dict):
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    if len(message.content) > MAX_QUESTION_CHARS:
+        await cl.Message(
+            content=(
+                f"Your message is {len(message.content)} characters long, which exceeds the "
+                f"{MAX_QUESTION_CHARS}-character limit. Please shorten it and try again."
+            )
+        ).send()
+        return
+
     history = cl.user_session.get("history", [])
     thinking = cl.Message(content="")
     await thinking.send()
