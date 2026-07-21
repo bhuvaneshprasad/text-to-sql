@@ -31,10 +31,10 @@ class Settings(BaseSettings):
     )
     querypilot_seed_cache_dir: Path = Path(".cache/querypilot")
 
-    llm_base_url: str = "http://localhost:11434/v1"
-    llm_api_key: SecretStr = SecretStr("ollama")
-    llm_chat_model: str = "qwen3.5:9b"
-    llm_timeout_seconds: float = 120.0
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_api_key: SecretStr
+    llm_chat_model: str = "gpt-5.4-mini"
+    llm_timeout_seconds: float = 900.0
 
     sql_max_rows: int = 100
     sql_statement_timeout_ms: int = 10000
