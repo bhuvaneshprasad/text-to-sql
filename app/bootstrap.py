@@ -43,7 +43,7 @@ async def bootstrap():
         logger.info("Dataset ingestion completed: %d tables found", len(tables))
 
     for sql_file in get_local_sql_files():
-        logger.info("Applying descriptions from: %s", sql_file.name)
+        logger.info("Running local SQL file: %s", sql_file.name)
         await execute_sql_file(settings, sql_file)
 
     role_created = await provision_read_only_role(settings)

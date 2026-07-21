@@ -16,6 +16,7 @@ SEED_FILES = [
 LOCAL_SQL_DIR = Path(__file__).parent / "sql"
 LOCAL_SQL_FILES = [
     "03_descriptions.sql",
+    "04_catalogue.sql",
 ]
 
 def get_local_sql_files():
