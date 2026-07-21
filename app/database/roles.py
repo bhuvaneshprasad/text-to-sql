@@ -1,4 +1,5 @@
 from app.config import Settings
+from app.database.constants import TEXT_TO_SQL_RELATIONS
 from psycopg import AsyncConnection, sql
 
 
@@ -21,8 +22,9 @@ async def read_only_role_exists(settings: Settings):
             )
 
             result = await cursor.fetchone()
-    
+
     return bool(result and result[0])
+
 
 async def ensure_read_only_role(settings: Settings):
     role_exists = await read_only_role_exists(settings=settings)
@@ -32,29 +34,30 @@ async def ensure_read_only_role(settings: Settings):
         autocommit=True,
         connect_timeout=settings.postgres_connect_timeout_seconds,
     ) as connection:
-        if role_exists:
-            async with connection.cursor() as cursor:
-                await cursor.execute(
-                    sql.SQL(
-                        """
-                        ALTER ROLE {}
-                        WITH
-                            LOGIN
-                            PASSWORD {}
-                            NOSUPERUSER
-                            NOCREATEDB
-                            NOCREATEROLE
-                            NOREPLICATION
-                            NOBYPASSRLS
-                    """
-                    ).format(
-                        sql.Identifier(settings.postgres_read_only_user),
-                        sql.Literal(settings.postgres_read_only_password.get_secret_value()),
-                    )
-                )
+        role = sql.Identifier(settings.postgres_read_only_user)
+        password = sql.Literal(
+            settings.postgres_read_only_password.get_secret_value()
+        )
 
-                return False
-        
+        if role_exists:
+            await connection.execute(
+                sql.SQL(
+                    """
+                    ALTER ROLE {}
+                    WITH
+                        LOGIN
+                        PASSWORD {}
+                        NOSUPERUSER
+                        NOCREATEDB
+                        NOCREATEROLE
+                        NOREPLICATION
+                        NOBYPASSRLS
+                    """
+                ).format(role, password)
+            )
+
+            return False
+
         await connection.execute(
             sql.SQL(
                 """
@@ -67,14 +70,12 @@ async def ensure_read_only_role(settings: Settings):
                     NOCREATEROLE
                     NOREPLICATION
                     NOBYPASSRLS
-            """
-            ).format(
-                sql.Identifier(settings.postgres_read_only_user),
-                sql.Literal(settings.postgres_read_only_password.get_secret_value()),
-            )
+                """
+            ).format(role, password)
         )
 
     return True
+
 
 async def grant_read_only_permissions(settings: Settings):
     async with await AsyncConnection.connect(
@@ -85,26 +86,57 @@ async def grant_read_only_permissions(settings: Settings):
         role = sql.Identifier(settings.postgres_read_only_user)
         database = sql.Identifier(settings.postgres_database)
 
+        allowed_relations = sql.SQL(", ").join(
+            sql.Identifier("public", relation_name)
+            for relation_name in TEXT_TO_SQL_RELATIONS
+        )
+
         statements = [
-            sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
-                database,
+            # Allow the role to connect to the target database.
+            sql.SQL(
+                "GRANT CONNECT ON DATABASE {} TO {}"
+            ).format(database, role),
+
+            # Allow object lookup inside the public schema.
+            sql.SQL(
+                "GRANT USAGE ON SCHEMA public TO {}"
+            ).format(role),
+
+            # Remove permissions previously granted by the old bootstrap.
+            sql.SQL(
+                """
+                REVOKE ALL PRIVILEGES
+                ON ALL TABLES IN SCHEMA public
+                FROM {}
+                """
+            ).format(role),
+
+            sql.SQL(
+                """
+                REVOKE ALL PRIVILEGES
+                ON ALL SEQUENCES IN SCHEMA public
+                FROM {}
+                """
+            ).format(role),
+
+            # Grant SELECT only on approved business relations.
+            sql.SQL(
+                """
+                GRANT SELECT
+                ON TABLE {}
+                TO {}
+                """
+            ).format(
+                allowed_relations,
                 role,
             ),
-            sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(role),
-            sql.SQL(
-                "GRANT SELECT ON ALL TABLES IN SCHEMA public TO {}"
-            ).format(role),
-            sql.SQL(
-                "GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO {}"
-            ).format(role),
         ]
 
         for statement in statements:
             await connection.execute(statement)
 
-async def grant_default_read_only_permissions(
-    settings: Settings,
-):
+
+async def revoke_default_read_only_permissions(settings: Settings):
     async with await AsyncConnection.connect(
         settings.target_admin_database_url,
         autocommit=True,
@@ -112,12 +144,13 @@ async def grant_default_read_only_permissions(
     ) as connection:
         role = sql.Identifier(settings.postgres_read_only_user)
 
+        # Remove the broad defaults configured by the previous bootstrap.
         await connection.execute(
             sql.SQL(
                 """
                 ALTER DEFAULT PRIVILEGES
                 IN SCHEMA public
-                GRANT SELECT ON TABLES TO {}
+                REVOKE ALL PRIVILEGES ON TABLES FROM {}
                 """
             ).format(role)
         )
@@ -127,14 +160,16 @@ async def grant_default_read_only_permissions(
                 """
                 ALTER DEFAULT PRIVILEGES
                 IN SCHEMA public
-                GRANT SELECT ON SEQUENCES TO {}
+                REVOKE ALL PRIVILEGES ON SEQUENCES FROM {}
                 """
             ).format(role)
         )
 
-async def provision_read_only_role(settings: Settings) -> bool:
+
+async def provision_read_only_role(settings: Settings):
     created = await ensure_read_only_role(settings)
+
     await grant_read_only_permissions(settings)
-    await grant_default_read_only_permissions(settings)
+    await revoke_default_read_only_permissions(settings)
 
     return created
