@@ -1,5 +1,9 @@
 from app.config import Settings
-from app.database.constants import TEXT_TO_SQL_RELATIONS
+from app.database.constants import (
+    CATALOGUE_RELATIONS,
+    CATALOGUE_SCHEMA,
+    TEXT_TO_SQL_RELATIONS,
+)
 from psycopg import AsyncConnection, sql
 
 
@@ -85,10 +89,16 @@ async def grant_read_only_permissions(settings: Settings):
     ) as connection:
         role = sql.Identifier(settings.postgres_read_only_user)
         database = sql.Identifier(settings.postgres_database)
+        catalogue_schema = sql.Identifier(CATALOGUE_SCHEMA)
 
         allowed_relations = sql.SQL(", ").join(
             sql.Identifier("public", relation_name)
             for relation_name in TEXT_TO_SQL_RELATIONS
+        )
+
+        catalogue_relations = sql.SQL(", ").join(
+            sql.Identifier(CATALOGUE_SCHEMA, relation_name)
+            for relation_name in CATALOGUE_RELATIONS
         )
 
         statements = [
@@ -101,6 +111,11 @@ async def grant_read_only_permissions(settings: Settings):
             sql.SQL(
                 "GRANT USAGE ON SCHEMA public TO {}"
             ).format(role),
+
+            # Allow object lookup inside the catalogue schema.
+            sql.SQL(
+                "GRANT USAGE ON SCHEMA {} TO {}"
+            ).format(catalogue_schema, role),
 
             # Remove permissions previously granted by the old bootstrap.
             sql.SQL(
@@ -128,6 +143,18 @@ async def grant_read_only_permissions(settings: Settings):
                 """
             ).format(
                 allowed_relations,
+                role,
+            ),
+
+            # Grant read-only access to the Text-to-SQL catalogue tables.
+            sql.SQL(
+                """
+                GRANT SELECT
+                ON TABLE {}
+                TO {}
+                """
+            ).format(
+                catalogue_relations,
                 role,
             ),
         ]
