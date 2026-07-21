@@ -6,9 +6,9 @@ from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
 from app.database.executor import SQLExecutor
-from app.models.tools import ExecuteSQLArgs
+from app.models.tools import ExecuteSQLArgs, RequestClarificationArgs
 from app.prompts.text_to_sql_agent import get_text_to_sql_prompt
-from app.tools.db_tools import EXECUTE_SQL_TOOL
+from app.tools.db_tools import EXECUTE_SQL_TOOL, REQUEST_CLARIFICATION_TOOL
 from app.models.chat import ChatTurn, AgentResult, StepTrace, ToolCallTrace
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class TextToSQLAgent:
             completion = await self.client.chat.completions.parse(
                 model=self.model,
                 messages=messages,
-                tools=[EXECUTE_SQL_TOOL],
+                tools=[EXECUTE_SQL_TOOL, REQUEST_CLARIFICATION_TOOL],
                 tool_choice="auto",
             )
             llm_latency_ms = (time.perf_counter() - started) * 1000
@@ -57,20 +57,48 @@ class TextToSQLAgent:
             messages.append(message)
 
             tool_calls = message.tool_calls or []
+
+            # The model asks the user instead of querying — return the question and stop.
+            clarification = next(
+                (
+                    call
+                    for call in tool_calls
+                    if call.function.name == "request_clarification"
+                ),
+                None,
+            )
+
             logger.info(
-                "LLM responded in %.1f ms: %d tool call(s) requested",
+                "LLM responded in %.1f ms: %d tool call(s) requested%s",
                 llm_latency_ms,
                 len(tool_calls),
+                " (clarification)" if clarification else "",
             )
 
             steps.append(
                 StepTrace(
                     index=len(steps) + 1,
                     kind="llm",
-                    label="LLM (tool call requested)" if tool_calls else "LLM (final answer)",
+                    label=(
+                        "LLM (clarification requested)"
+                        if clarification
+                        else "LLM (tool call requested)"
+                        if tool_calls
+                        else "LLM (final answer)"
+                    ),
                     latency_ms=round(llm_latency_ms, 1),
                 )
             )
+
+            if clarification:
+                args = clarification.function.parsed_arguments
+                question = (
+                    args.question
+                    if isinstance(args, RequestClarificationArgs)
+                    else (message.content or "")
+                )
+                logger.info("LLM requested clarification after %d step(s)", len(steps))
+                return AgentResult(response=question, steps=steps)
 
             if not tool_calls:
                 logger.info("LLM returned final answer after %d step(s)", len(steps))
