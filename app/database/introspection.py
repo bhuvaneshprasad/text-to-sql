@@ -51,7 +51,10 @@ async def get_schema_metadata(
     return rows
 
 
-def format_schema_context(metadata: list[dict[str, Any]]):
+def format_schema_context(
+    metadata: list[dict[str, Any]],
+    table_prefix: str = "",
+):
     tables: dict[str, dict[str, Any]] = {}
 
     for row in metadata:
@@ -76,7 +79,7 @@ def format_schema_context(metadata: list[dict[str, Any]]):
     sections: list[str] = []
 
     for table_name, table in tables.items():
-        lines = [f"Table: {table_name}"]
+        lines = [f"Table: {table_prefix}{table_name}"]
 
         if table["description"]:
             lines.append(f"Description: {table['description']}")

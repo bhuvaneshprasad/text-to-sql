@@ -6,6 +6,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.agents.text_to_sql import TextToSQLAgent
 from app.config import get_settings
+from app.database.constants import CATALOGUE_RELATIONS, CATALOGUE_SCHEMA
 from app.database.executor import SQLExecutor
 from app.database.introspection import get_schema_metadata, format_schema_context
 from app.llm.client import create_llm_client
@@ -24,8 +25,21 @@ async def chat(payload: ChatRequest, request: Request, settings = Depends(get_se
         len(payload.history or []),
     )
     pool: AsyncConnectionPool = request.app.state.database_pool
-    schema_metadata = await get_schema_metadata(pool)
-    schema_context = format_schema_context(schema_metadata)
+
+    business_metadata = await get_schema_metadata(pool)
+    catalogue_metadata = await get_schema_metadata(
+        pool,
+        schema_name=CATALOGUE_SCHEMA,
+        relation_names=CATALOGUE_RELATIONS,
+    )
+
+    schema_context = (
+        "# Business schema (query these public tables/views to produce answers)\n\n"
+        f"{format_schema_context(business_metadata)}\n\n"
+        "# Metadata catalogue (read-only; query to validate identifiers and values, "
+        "never as the answer)\n\n"
+        f"{format_schema_context(catalogue_metadata, table_prefix=f'{CATALOGUE_SCHEMA}.')}"
+    )
     logger.debug("Schema context loaded (%d chars)", len(schema_context))
 
     executor = SQLExecutor(
