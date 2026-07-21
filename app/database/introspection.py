@@ -2,7 +2,11 @@ from typing import Any
 
 from psycopg_pool import AsyncConnectionPool
 
-from app.database.constants import TEXT_TO_SQL_RELATIONS
+from app.database.constants import (
+    CATALOGUE_RELATIONS,
+    CATALOGUE_SCHEMA,
+    TEXT_TO_SQL_RELATIONS,
+)
 from app.database.queries import fetch_all
 
 
@@ -97,3 +101,19 @@ def format_schema_context(
         sections.append("\n".join(lines))
 
     return "\n\n".join(sections)
+
+
+async def build_schema_context(pool: AsyncConnectionPool):
+    business_metadata = await get_schema_metadata(pool)
+    catalogue_metadata = await get_schema_metadata(
+        pool,
+        schema_name=CATALOGUE_SCHEMA,
+        relation_names=CATALOGUE_RELATIONS,
+    )
+
+    return (
+        "# Business schema (query these public tables/views to produce answers)\n\n"
+        f"{format_schema_context(business_metadata)}\n\n"
+        "# Metadata catalogue (read-only; query to validate identifiers and values, never as the answer)\n\n"
+        f"{format_schema_context(catalogue_metadata, table_prefix=f'{CATALOGUE_SCHEMA}.')}"
+    )

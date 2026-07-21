@@ -6,10 +6,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.agents.text_to_sql import TextToSQLAgent
 from app.config import get_settings
-from app.database.constants import CATALOGUE_RELATIONS, CATALOGUE_SCHEMA
 from app.database.executor import SQLExecutor
-from app.database.introspection import get_schema_metadata, format_schema_context
-from app.llm.client import create_llm_client
 from app.models.chat import ChatRequest, ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -26,21 +23,7 @@ async def chat(payload: ChatRequest, request: Request, settings = Depends(get_se
     )
     pool: AsyncConnectionPool = request.app.state.database_pool
 
-    business_metadata = await get_schema_metadata(pool)
-    catalogue_metadata = await get_schema_metadata(
-        pool,
-        schema_name=CATALOGUE_SCHEMA,
-        relation_names=CATALOGUE_RELATIONS,
-    )
-
-    schema_context = (
-        "# Business schema (query these public tables/views to produce answers)\n\n"
-        f"{format_schema_context(business_metadata)}\n\n"
-        "# Metadata catalogue (read-only; query to validate identifiers and values, "
-        "never as the answer)\n\n"
-        f"{format_schema_context(catalogue_metadata, table_prefix=f'{CATALOGUE_SCHEMA}.')}"
-    )
-    logger.debug("Schema context loaded (%d chars)", len(schema_context))
+    schema_context: str = request.app.state.schema_context
 
     executor = SQLExecutor(
         pool=pool,
@@ -49,7 +32,7 @@ async def chat(payload: ChatRequest, request: Request, settings = Depends(get_se
     )
 
     agent = TextToSQLAgent(
-        client=create_llm_client(settings=settings),
+        client=request.app.state.llm_client,
         model=settings.llm_chat_model,
         sql_executor=executor,
         schema_context=schema_context,

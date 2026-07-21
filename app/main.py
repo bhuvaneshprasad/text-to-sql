@@ -4,7 +4,9 @@ from fastapi import FastAPI
 from .config import get_settings
 from .api.router import app_router
 from contextlib import asynccontextmanager
+from app.database.introspection import build_schema_context
 from app.database.pool import create_read_only_pool
+from app.llm.client import create_llm_client
 from app.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -21,10 +23,19 @@ async def lifespan(app: FastAPI):
     app.state.database_pool = database_pool
     logger.info("Database pool ready (min=%s, max=%s)", settings.postgres_pool_min_size, settings.postgres_pool_max_size)
 
+    # The schema is static for the app's lifetime, fetch once and reuse.
+    app.state.schema_context = await build_schema_context(database_pool)
+    logger.info("Schema context cached (%d chars)", len(app.state.schema_context))
+
+    # One shared LLM client for all requests (reuses the underlying HTTP connections).
+    app.state.llm_client = create_llm_client(settings=settings)
+    logger.info("LLM client ready (model=%s)", settings.llm_chat_model)
+
     try:
         yield
     finally:
-        logger.info("Shutting down: closing database pool")
+        logger.info("Shutting down: closing LLM client and database pool")
+        await app.state.llm_client.close()
         await database_pool.close()
 
 def create_app():
