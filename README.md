@@ -147,6 +147,11 @@ Read-only access is enforced in layers, so a write can never reach the data even
 - **Read-only transactions** - every query runs under `SET TRANSACTION READ ONLY`.
 - **Statement validation** - `sqlglot` parses the SQL and rejects anything that is not a read-only `SELECT` / `WITH … SELECT`; only the parsed statement is executed, so smuggled extra statements are dropped.
 
+## Documentation
+
+- [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) - approach, prompting, SQL validation, conversation management, assumptions, and limitations.
+- [SCHEMA.md](SCHEMA.md) - the data model the assistant queries.
+
 ## Acknowledgements
 
 Dataset and seed data from the [QueryPilot](https://github.com/QueryPilot/studio) project.
