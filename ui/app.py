@@ -12,6 +12,55 @@ TIMEOUT = httpx.Timeout(connect=10.0, read=600.0, write=10.0, pool=10.0)
 MAX_CHAT_TURNS = 7
 
 
+@cl.set_starters
+async def set_starters():
+    return [
+        # Simple starters
+        cl.Starter(
+            label="Active product count",
+            message="How many active products are in the catalog?",
+        ),
+        cl.Starter(
+            label="Most recent orders",
+            message="Show the 10 most recent orders with their status and total amount.",
+        ),
+        cl.Starter(
+            label="Categories by product count",
+            message="List the top 5 categories by number of active products.",
+        ),
+        cl.Starter(
+            label="Average review rating",
+            message="What is the average product rating across all approved reviews?",
+        ),
+        # Multi-table
+        cl.Starter(
+            label="Top customers by lifetime value",
+            message="Which customers have the highest lifetime value, and what are their most recent order dates?",
+        ),
+        cl.Starter(
+            label="Top products by revenue",
+            message="What are the top 10 products by revenue, along with their category names and average review ratings?",
+        ),
+        cl.Starter(
+            label="Categories by total sales",
+            message="Which categories have the highest total sales, and how many active products belong to each category?",
+        ),
+        # JSON
+        cl.Starter(
+            label="Customers using the dark theme",
+            message="How many customers have dark theme, and what is their average lifetime value?",
+        ),
+        cl.Starter(
+            label="Newsletter subscribers",
+            message="How many customers have newsletter notifications enabled?",
+        ),
+        cl.Starter(
+            label="Products with height < 1cm",
+            message="Which products have height less than 1cm?",
+        ),
+    ]
+
+
 @cl.on_chat_start
 async def on_chat_start():
     cl.user_session.set("history", [])
